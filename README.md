@@ -17,4 +17,8 @@ pytest==8.3.4
 ```
 
 Run Tests:
-`pytest -s tests`
+
+```
+pip install -r requirements.txt
+pytest -s tests
+```
