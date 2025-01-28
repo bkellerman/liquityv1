@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# IPool
+# Common interface for the Pools.
+
+# --- Events ---
+
+event ETHBalanceUpdated:
+    new_balance: uint256
+
+event RDBalanceUpdated:
+    new_balance: uint256
+
+event ActivePoolAddressChanged:
+    new_active_pool_address: address
+
+event DefaultPoolAddressChanged:
+    new_default_pool_address: address
+
+event StabilityPoolAddressChanged:
+    new_stability_pool_address: address
+
+event EtherSent:
+    to: address
+    amount: uint256
+
+# --- Functions ---
+
+@external
+@view
+def get_eth() -> uint256:
+    ...
+
+@external
+@view
+def get_lusd_debt() -> uint256:
+    ...
+
+@external
+def increase_lusd_debt(amount: uint256):
+    ...
+
+@external
+def decrease_lusd_debt(amount: uint256):
+    ...

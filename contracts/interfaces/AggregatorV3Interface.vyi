@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+@external
+@view
+def decimals() -> uint8:
+    ...
+
+@external
+@view
+def description() -> String[256]:
+    ...
+
+@external
+@view
+def version() -> uint256:
+    ...
+
+## getRoundData and latestRoundData should both raise "No data present"
+## if they do not have data to report, instead of returning unset values
+## which could be misinterpreted as actual reported values.
+#uint80 roundId,
+#int256 answer,
+#uint256 startedAt,
+#uint256 updatedAt,
+#uint80 answeredInRound
+@external
+@view
+def getRoundData(round_id: uint80) -> (uint80, int256, uint256, uint256, uint80):
+    ...
+
+@external
+@view
+def latestRoundData() -> (uint80, int256, uint256, uint256, uint80):
+    ...

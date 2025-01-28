@@ -1,0 +1,285 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+from interfaces import IRDToken
+# Common interface for the Trove Manager.
+    
+# --- Events ---
+
+event BorrowerOperationsAddressChanged:
+    new_borrower_operations_address: address
+event PriceFeedAddressChanged:
+    new_price_feed_address: address
+event RDTokenAddressChanged:
+    new_lusd_token_address: address
+event ActivePoolAddressChanged:
+    active_pool_address: address
+event DefaultPoolAddressChanged:
+    default_pool_address: address
+event StabilityPoolAddressChanged:
+    stability_pool_address: address
+event GasPoolAddressChanged:
+    gas_pool_address: address
+event CollSurplusPoolAddressChanged:
+    coll_surplus_pool_address: address
+event SortedTrovesAddressChanged:
+    sorted_troves_address: address
+event LQTYTokenAddressChanged:
+    lqty_token_address: address
+event LQTYStakingAddressChanged:
+    lqty_staking_address: address
+
+event Liquidation:
+    liquidated_debt: uint256
+    liquidated_coll: uint256
+    coll_gas_compensation: uint256
+    rd_gas_compensation: uint256
+event Redemption:
+    attempted_lusd_amount: uint256
+    actualRDAmount: uint256
+    eth_sent: uint256
+    eth_fee: uint256
+event TroveUpdated:
+    borrower: indexed(uint256)
+    debt: uint256
+    coll: uint256
+    stake: uint256
+    operation: uint8
+event TroveLiquidated:
+    borrower: indexed(uint256)
+    debt: uint256
+    coll: uint256
+    operation: uint8
+event BaseRateUpdated:
+    base_rate: uint256
+event LastFeeOpTimeUpdated:
+    last_fee_op_time: uint256
+event TotalStakesUpdated:
+    new_total_stakes: uint256
+event SystemSnapshotsUpdated:
+    total_stakes_snapshot: uint256
+    total_collateral_snapshot: uint256
+event LTermsUpdated:
+    l_eth: uint256
+    l_lusd_debt: uint256
+event TroveSnapshotsUpdated:
+    l_eth: uint256
+    l_lusd_debt: uint256
+event TroveIndexUpdated:
+    borrower: uint256
+    new_index: uint256
+
+# --- Functions ---
+
+def set_addresses(
+    borrower_operations_address: address,
+    active_pool_address: address,
+    default_pool_address: address,
+    stability_pool_address: address,
+    gas_pool_address: address,
+    coll_surplus_pool_address: address,
+    price_feed_address: address,
+    rd_token_address: address,
+    sorted_troves_address: address,
+    lqty_token_address: address,
+    lqty_staking_address: address
+):
+    ...
+
+#@external
+#@view
+#def stability_pool() -> IStabilityPool:
+#    ...
+
+@external
+@view
+def rd_token() -> IRDToken:
+    ...
+
+#@external
+#@view
+#def lqty_token() -> ILQTYToken:
+#    ...
+
+#@external
+#@view
+#def lqty_staking() -> ILQTYStaking:
+#    ...
+
+@external
+@view
+def get_trove_owners_count() -> uint256:
+    ...
+
+@external
+@view
+def get_trove_from_trove_owners_array(index: uint256)  -> uint256:
+    ...
+
+@external
+@view
+def get_nominal_icr(borrower: address) -> uint256:
+    ...
+
+@external
+@view
+def get_current_icr(borrower: address, price: uint256) -> uint256:
+    ...
+
+@external
+def liquidate(borrower: address):
+    ...
+
+@external
+def liquidate_troves(n: uint256):
+    ...
+
+@external
+def batch_liquidate_troves(trove_array: DynArray[address, 100]):
+    ...
+
+@external
+def redeem_collateral(
+    rd_amount: uint256,
+    first_redemption_hint: address,
+    upper_partial_redemption_hint: address,
+    lower_partial_redemption_hint: address,
+    partial_redemption_hint_nicr: uint256,
+    max_iterations: uint256,
+    max_fee: uint256
+):
+    ...
+
+@external
+def update_stake_and_total_stakes(borrower: address)-> uint256:
+    ...
+
+@external
+def update_trove_reward_snapshots(borrower: address):
+    ...
+
+@external
+def add_trove_owner_to_array(borrower: address) -> uint256:
+    ...
+
+@external
+def apply_pending_rewards(borrower: address):
+    ...
+
+@external
+@view
+def get_pending_eth_reward(borrower: address) -> uint256:
+    ...
+
+@external
+@view
+def get_pending_lusd_debt_reward(borrower: address) -> uint256:
+    ...
+ 
+@external
+@view
+def has_pending_rewards(borrower: uint256) -> bool:
+    ...
+
+@external
+@view
+# returns(debt, coll, pending_lusd_debt_reward, pending_eth_reward)
+def get_entire_debt_and_coll(borrower: address) -> (uint256, uint256, uint256, uint256):
+    ...
+
+@external
+def close_trove(borrower: address):
+    ...
+
+@external
+def remove_stake(borrower: address):
+    ...
+
+@external
+@view
+def get_redemption_rate() -> uint256:
+    ...
+
+@external
+@view
+def get_redemption_rate_with_decay() -> uint256:
+    ...
+
+@external
+@view
+def get_redemption_fee_with_decay(eth_drawn: uint256) -> uint256:
+    ...
+
+@external
+@view
+def get_borrowing_rate() -> uint256:
+    ...
+
+@external
+@view
+def get_borrowing_rate_with_decay() -> uint256:
+    ...
+
+@external
+@view
+def get_borrowing_fee(rd_debt: uint256) -> uint256:
+	...
+
+@external
+@view
+def get_borrowing_fee_with_decay(rd_debt: uint256) -> uint256:
+    ...
+
+@external
+def decay_base_rate_from_borrowing():
+    ...
+
+@external
+@view
+def get_trove_status(borrower: address) -> uint256:
+    ...
+
+@external
+@view
+def get_trove_stake(borrower: address) -> uint256:
+    ...
+
+@external
+@view
+def get_trove_debt(borrower: address) -> uint256:
+    ...
+
+@external
+@view
+def get_trove_coll(borrower: address) -> uint256:
+    ...
+
+@external
+def set_trove_status(borrower: address, num: uint256):
+    ...
+
+@external
+def increase_trove_coll(borrower: address, coll_increase: uint256) -> uint256:
+    ...
+
+@external
+def decrease_trove_coll(borrower: address, coll_decrease: uint256) -> uint256:
+    ...
+
+@external
+def increase_trove_debt(borrower: address, debt_increase: uint256) -> uint256:
+    ...
+
+@external
+def decrease_trove_debt(borrower: address, coll_decrease: uint256) -> uint256:
+    ...
+
+@external
+@view
+def et_tcr(price: uint256) -> uint256:
+    ...
+
+@external
+@view
+def check_recovery_mode(price: uint256) -> bool:
+    ...

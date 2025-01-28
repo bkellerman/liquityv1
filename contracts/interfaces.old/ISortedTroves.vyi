@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# Common interface for the SortedTroves Doubly Linked List.
+
+# --- Events ---
+
+event SortedTrovesAddressChanged:
+    sorted_doubly_ll_address: address
+event BorrowerOperationsAddressChanged:
+    borrower_operations_address: address
+event NodeAdded:
+    id: address
+    nicr: uint256
+event NodeRemoved:
+    id: address
+
+# --- Functions ---
+@external
+def set_params(size: uint256, trove_manager_address: address, sorrower_operations_address: address):
+    ...
+
+@external
+def insert(id: address, icr: uint256, prev_id: address, next_id: address):
+    ...
+
+@external
+def remove(id: address):
+    ...
+
+@external
+def re_insert(id: address, new_icr: uint256, prev_id: address, next_id: address):
+    ...
+
+@external
+@view
+def contains(id: address) -> (bool):
+    ...
+
+@external
+@view
+def is_full() -> (bool):
+    ...
+
+@external
+@view
+def is_empty() -> (bool):
+    ...
+
+@external
+@view
+def get_size() -> (uint256):
+    ...
+
+@external
+@view
+def get_max_size() -> (uint256):
+    ...
+
+@external
+@view
+def get_first() -> (address):
+    ...
+
+@external
+@view
+def get_last() -> (address):
+    ...
+
+@external
+@view
+def get_next(id: address) -> (address):
+    ...
+
+@external
+@view
+def get_prev(id: address) -> (address):
+    ...
+
+@external
+@view
+def valid_insert_position(icr: uint256, prev_id: address, next_id: address) -> (bool):
+    ...
+
+@external
+@view
+def find_insert_position(icr: uint256, prev_id: address, next_id: address) -> (address, address):
+    ...

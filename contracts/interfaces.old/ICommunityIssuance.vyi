@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# --- Events ---
+
+event LQTYTokenAddressSet:
+    gov_token_address: address
+
+event StabilityPoolAddressSet:
+    stability_pool_address: address
+
+event TotalLQTYIssuedUpdated:
+    total_gov_issued: uint256
+
+# --- Functions ---
+@external
+def set_addresses(gov_token_address: address, stability_pool_address: address):
+    ...
+
+@external
+def issue_gov() -> uint256:
+    ...
+
+@external
+def send_gov(account: address, gov_amount: uint256):
+    ...

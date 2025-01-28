@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# Common interface for the Trove Manager.
+
+event TroveManagerAddressChanged:
+    _newTroveManagerAddress: address
+
+event ActivePoolAddressChanged:
+    _activePoolAddress: address
+
+event DefaultPoolAddressChanged:
+    _defaultPoolAddress: address
+
+event StabilityPoolAddressChanged:
+    _stabilityPoolAddress: address
+
+event GasPoolAddressChanged:
+    _gasPoolAddress: address
+event CollSurplusPoolAddressChanged:
+    _collSurplusPoolAddress: address
+
+event PriceFeedAddressChanged:
+    _newPriceFeedAddress: address
+
+event SortedTrovesAddressChanged:
+    _sortedTrovesAddress: address
+
+event LUSDTokenAddressChanged:
+    _lusdTokenAddress: address
+
+event LQTYStakingAddressChanged:
+    _lqtyStakingAddress: address
+
+event TroveCreated:
+    _borrower: indexed(address)
+    arrayIndex: uint256
+
+event TroveUpdated:
+    _borrower: indexed(address)
+    _debt: uint256
+    _coll: uint256
+    stake: uint256
+    operation: uint8
+
+event LUSDBorrowingFeePaid:
+    _borrower: indexed(address)
+    _LUSDFee: uint256
+
+@external
+def set_addresses(_trove_manager_aAddress: address,
+    _active_pool_address: address,
+    _default_pool_address: address,
+    _stability_pool_address: address,
+    _gas_pool_address: address,
+    _coll_surplus_pool_address: address,
+    _price_feed_address: address,
+    _sorted_troves_address: address,
+    _lusd_token_address: address,
+    _gov_staking_address: address):
+    ...
+
+@payable
+def open_trove(max_fee: uint256,
+    rd_amount:  uint256,
+    upper_hint: address,
+    lower_hint: address):
+    ...
+
+@payable
+def add_coll(upper_hint: address,
+    lower_hint: address):
+    ...
+
+@payable
+def move_eth_gain_to_trove(_user: address,
+    upper_hint: address,
+    lower_hint: address):
+    ...
+
+@external
+def withdraw_coll(amount: uint256,
+    upper_hint: address,
+    lower_hint: address):
+    ...
+
+@external
+def withdraw_rd(max_fee: uint256,
+    amount: uint256,
+    upper_hint: address,
+    lower_hint: address):
+    ...
+
+@external
+def repay_rd(amount: uint256,
+    upper_hint: address,
+    lower_hint: address):
+    ...
+
+@external
+def close_trove():
+    ...
+
+@payable
+def adjust_trove(max_fee: uint256,
+    coll_withdrawal: uint256,
+    debt_change: uint256,
+    is_debt_increase: bool,
+    upper_hint: address,
+    lower_hint: address):
+    ...
+
+@external
+def claim_collateral():
+    ...
+
+@pure
+def get_composite_debt(debt:  uint256) -> uint256:
+    ...
+

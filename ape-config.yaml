@@ -1,0 +1,6 @@
+name: RAI Dollar
+plugins:
+  - name: vyper
+    version: 0.8.8
+test:
+  number_of_accounts: 50
