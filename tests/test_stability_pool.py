@@ -2,8 +2,8 @@ import ape
 import pytest
 import boa
 
-from util import set_sender, reset_sender, ZERO_ADDRESS
-from fixtures import system, owner, alice, bob, frontend, system_addresses
+from tests.util import set_sender, reset_sender, ZERO_ADDRESS
+from tests.fixtures import system, owner, alice, bob, frontend, system_addresses
 
 class TestStabilityPool:
     def test_initial(self, system):

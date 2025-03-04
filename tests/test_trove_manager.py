@@ -1,8 +1,8 @@
 import ape
 import pytest
 import boa
-from util import set_sender, reset_sender, ZERO_ADDRESS, print_addresses
-from fixtures import system, owner, alice, bob, charlie, frontend, system_addresses
+from tests.util import set_sender, reset_sender, ZERO_ADDRESS, print_addresses
+from tests.fixtures import system, owner, alice, bob, charlie, frontend, system_addresses
 
 class TestVaultManager:
     def test_liquidate(self, system, alice, bob, charlie, owner):
