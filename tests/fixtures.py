@@ -46,7 +46,9 @@ def system_addresses(accounts):
                         'lp_rewards': accounts[26].address,
                         'multisig': accounts[27].address,
                         'price_aggregator': accounts[28].address,
-                        'tellor_caller': accounts[29].address
+                        'tellor_caller': accounts[29].address,
+                        'chainlink_sequencer_uptime_feed': accounts[30].address,
+                        'chainlink_relayer': accounts[31].address
                         }
     return system_addresses
 
@@ -100,15 +102,22 @@ def system(owner, alice, bob, system_addresses, project):
             deploy(override_address=system_addresses['tellor_caller'])
 
     price_aggregator = boa.load_partial('tests/chainlink.vy').\
-            deploy(18, 1, "eth/usd feed", boa.env.evm.patch.timestamp, 2900 * 10**18,
+            deploy(18, 1, "ETH / USD", boa.env.evm.patch.timestamp, 2900 * 10**18,
                    override_address=system_addresses['price_aggregator'])
-
+            
+    chainlink_sequencer_uptime_feed = boa.load_partial('tests/chainlink.vy').\
+            deploy(18, 1, "eth/usd feed", boa.env.evm.patch.timestamp, 2900 * 10**18,
+                   override_address=system_addresses['chainlink_sequencer_uptime_feed'])
+            
     lusd_token = boa.load_partial('contracts/lusd_token.vy').\
             deploy(system_addresses['trove_manager'],
             system_addresses['stability_pool'],
             system_addresses['borrower_operations'],
             override_address=system_addresses['lusd_token'])
 
+    chainlink_relayer = boa.load_partial('contracts/oracles/chainlink_relayer.vy').\
+               deploy(system_addresses['price_aggregator'], system_addresses['chainlink_sequencer_uptime_feed'], 3600, override_address=system_addresses['chainlink_relayer'])
+    
     # setup stability pool
     stability_pool.set_addresses(system_addresses['borrower_operations'], system_addresses['trove_manager'],
         system_addresses['active_pool'], system_addresses['lusd_token'],
@@ -153,6 +162,7 @@ def system(owner, alice, bob, system_addresses, project):
     lqty_staking.set_addresses(system_addresses['lqty_token'], system_addresses['lusd_token'],
                               system_addresses['trove_manager'], system_addresses['borrower_operations'],
                               system_addresses['active_pool'])
+
     # mint lusd
     boa.env.eoa = system_addresses['borrower_operations']
     lusd_token.mint(alice.address, int(1000000e18))
@@ -173,9 +183,11 @@ def system(owner, alice, bob, system_addresses, project):
             'default_pool': default_pool,
             'gas_pool': gas_pool,
             'price_aggregator': price_aggregator,
-            'tellor_caller': tellor_caller
+            'tellor_caller': tellor_caller,
+            'chainlink_relayer': chainlink_relayer,
+            'chainlink_sequencer_uptime_feed': chainlink_sequencer_uptime_feed
             }
 
 @pytest.fixture
 def frontend(accounts):
-    return accounts[30]
+    return accounts[32]

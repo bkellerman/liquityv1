@@ -46,8 +46,8 @@ def getRoundData(round_id: uint80) -> (uint80, int256, uint256, uint256, uint80)
 def latestRoundData() -> (uint80, int256, uint256, uint256, uint80):
     round_id: uint80 = 10
     answer: int256 =  self.price
-    started_at: uint256 = self.timestamp
-    updated_at: uint256 = self.timestamp + 100
+    started_at: uint256 = self.timestamp - 100  # Set to past timestamp
+    updated_at: uint256 = self.timestamp - 50   # Set to past timestamp, but more recent than started_at
     answered_in_round: uint80 = 10
 
     return round_id, answer, started_at, updated_at, answered_in_round

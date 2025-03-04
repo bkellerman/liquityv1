@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# --- Functions ---
+
+@external
+@view
+def decimals() -> uint8:
+    ...
+
+@external
+@view
+def description() -> String[256]:
+    ...
+
+@external
+@view
+def getAnswer(round_id: uint256) -> int256:
+    ...
+
+@external
+@view
+def getRoundData(round_id: uint256) -> (uint256, int256, uint256, uint256, uint256):
+    ...
+
+@external
+@view
+def getTimestamp(round_id: uint256) -> uint256:
+    ...
+
+@external
+@view
+def latestAnswer() -> int256:
+    ...
+
+@external
+@view
+def latestRound() -> uint256:
+    ...
+
+@external
+@view
+def latestRoundData() -> (uint80, int256, uint256, uint256, uint80):
+    ...
+
+@external
+@view
+def latestTimestamp() -> uint256:
+    ...
