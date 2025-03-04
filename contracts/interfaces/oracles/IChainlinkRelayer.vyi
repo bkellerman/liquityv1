@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# --- Functions ---
+
+# @notice Symbol of the quote: token / baseToken (e.g. 'ETH / USD')
+@external
+@view
+def symbol() -> String[32]:
+    ...
+
+# @notice Fetch the latest oracle result and whether it is valid or not
+# @dev    This method should never revert
+@external
+@view
+def getResultWithValidity() -> (uint256, bool):
+    ...
+
+# @notice Fetch the latest oracle result
+# @dev    Will revert if is the price feed is invalid
+@external
+@view
+def read() -> uint256:
+    ...
+
+# --- Registry ---
+
+# @notice Address of the Chainlink price feed used to consult the price
+@external
+@view
+def priceFeed() -> address:
+    ...
+
+# @notice Address of the Chainlink sequencer uptime feed used to consult the sequencer status
+@external
+@view
+def sequencerUptimeFeed() -> address:
+    ...
+
+# --- Data ---
+
+# @notice The multiplier used to convert the quote into an 18 decimals format
+@external
+@view
+def multiplier() -> uint256:
+    ...
+
+# @notice The time threshold after which a Chainlink response is considered stale
+@external
+@view
+def staleThreshold() -> uint256:
+    ...
