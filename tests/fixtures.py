@@ -46,7 +46,9 @@ def system_addresses(accounts):
                         'lp_rewards': accounts[26].address,
                         'multisig': accounts[27].address,
                         'price_aggregator': accounts[28].address,
-                        'tellor_caller': accounts[29].address
+                        'tellor_caller': accounts[29].address,
+                        'oracle': accounts[30].address,
+                        'oracle_full': accounts[31].address
                         }
     return system_addresses
 
@@ -102,6 +104,12 @@ def system(owner, alice, bob, system_addresses, project):
     price_aggregator = boa.load_partial('tests/chainlink.vy').\
             deploy(18, 1, "eth/usd feed", boa.env.evm.patch.timestamp, 2900 * 10**18,
                    override_address=system_addresses['price_aggregator'])
+            
+    oracle = boa.load_partial('contracts/oracle.vy').\
+            deploy(override_address=system_addresses['oracle'])
+
+    oracle_full = boa.load_partial('contracts/oracle_full.vy').\
+            deploy(override_address=system_addresses['oracle_full'])
 
     lusd_token = boa.load_partial('contracts/lusd_token.vy').\
             deploy(system_addresses['trove_manager'],
@@ -173,9 +181,11 @@ def system(owner, alice, bob, system_addresses, project):
             'default_pool': default_pool,
             'gas_pool': gas_pool,
             'price_aggregator': price_aggregator,
-            'tellor_caller': tellor_caller
+            'tellor_caller': tellor_caller,
+            'oracle': oracle,
+            'oracle_full': oracle_full
             }
 
 @pytest.fixture
 def frontend(accounts):
-    return accounts[30]
+    return accounts[32]
