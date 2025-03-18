@@ -105,56 +105,6 @@ def _transform(
         seconds_per_liquidity_cumulative_x128=new_seconds_per_liquidity_cumulative,
         initialized=True
     )
-# @internal
-# @pure
-# def _transform(
-#     last: Observation,
-#     block_timestamp: uint32,
-#     tick: int24,
-#     liquidity: uint128
-# ) -> Observation:
-#     """
-#     @notice Transforms a previous observation into a new observation
-#     @param last The specified observation to be transformed
-#     @param block_timestamp The timestamp of the new observation
-#     @param tick The active tick at the time of the new observation
-#     @param liquidity The total in-range liquidity at the time of the new observation
-#     @return Observation The newly populated observation
-#     """
-#     # Handle uint32 overflow in timestamp arithmetic
-#     delta: uint32 = 0
-#     if block_timestamp < last.block_timestamp:
-#         # Handle overflow case
-#         delta = convert(
-#             (convert(block_timestamp, uint256) + convert(max_value(uint32), uint256) + convert(1, uint256) - convert(last.block_timestamp, uint256)),
-#             uint32
-#         )
-#     else:
-#         delta = block_timestamp - last.block_timestamp
-
-#     # Calculate seconds_per_liquidity_cumulative_x128
-#     seconds_shifted: uint256 = convert(delta, uint256) << 128
-#     effective_liquidity: uint256 = convert(liquidity, uint256)
-#     if effective_liquidity == 0:
-#         effective_liquidity = 1
-    
-#     seconds_per_liquidity_delta: uint256 = seconds_shifted // effective_liquidity
-    
-#     # Handle uint160 overflow for seconds_per_liquidity_cumulative_x128
-#     mask_160: uint256 = (1 << 160) - 1
-#     new_seconds_per_liquidity_cumulative: uint160 = convert(
-#         (convert(last.seconds_per_liquidity_cumulative_x128, uint256) + seconds_per_liquidity_delta) & mask_160,
-#         uint160
-#     )
-    
-#     return Observation(
-#         block_timestamp=block_timestamp,
-#         tick=tick,
-#         tick_cumulative=last.tick_cumulative + convert(last.tick, int56) * convert(delta, int56),
-#         seconds_per_liquidity_cumulative_x128=new_seconds_per_liquidity_cumulative,
-#         initialized=True
-#     )
-
 
 @internal
 def _write(
@@ -178,25 +128,11 @@ def _write(
     if self.observations[index].block_timestamp == block_timestamp:
         return self.observations[index], index, cardinality
 
-    
-    
-    # # If we can grow and haven't filled the current cardinality, grow
-    # new_cardinality: uint16 = cardinality
-    # if cardinality_next > cardinality and index_updated < cardinality_next:
-    #     new_cardinality = cardinality_next
-    # else:
-    #     # Only wrap if we're not growing
-    #     if index_updated >= cardinality:
-    #         index_updated = 0
-    # If we can grow and haven't filled the current cardinality, grow
     new_cardinality: uint16 = cardinality
     if cardinality_next > cardinality and index == (cardinality - 1):
         new_cardinality = cardinality_next
     else:
         new_cardinality = cardinality
-        # # Only wrap if we're not growing
-        # if index_updated >= cardinality:
-        #     index_updated = 0
 
     # Calculate next index with proper wrapping
     index_updated: uint16 = (index + 1) % new_cardinality
