@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: MIT
+# pragma version ~=0.4.0
+
+# --- Structs ---
+struct Observation:
+    block_timestamp: uint32
+    tick: int24
+    tick_cumulative: int56
+    seconds_per_liquidity_cumulative_x128: uint160
+    initialized: bool
+
+struct InitializeParams:
+    time: uint32
+    tick: int24
+    liquidity: uint128
+
+struct UpdateParams:
+    advance_time_by: uint32
+    tick: int24
+    liquidity: uint128
+
+# --- Events ---
+event ObservationUpdate:
+    block_timestamp: uint32
+    tick_cumulative: int56
+    seconds_per_liquidity_cumulative_x128: uint160
+    tick: int24
+    initialized: bool
+
+# --- Public State Variables ---
+observations: public(Observation[65535])
+time: public(uint32)
+tick: public(int24)
+liquidity: public(uint128)
+index: public(uint16)
+cardinality: public(uint16)
+cardinality_next: public(uint16)
+
+# --- External Functions ---
+@external
+def initialize(params: InitializeParams):
+    """
+    @notice Initialize the oracle with the first observation
+    @param params The initialization parameters
+    """
+    ...
+
+@external
+def advance_time(by: uint32):
+    """
+    @notice Advance the oracle time by a specified amount
+    @param by The amount of time to advance by
+    """
+    ...
+
+@external
+def update(params: UpdateParams):
+    """
+    @notice Update the oracle with new observations
+    @param params The update parameters
+    """
+    ...
+
+@external
+def batch_update(params: DynArray[UpdateParams, 300]):
+    """
+    @notice Update the oracle with multiple observations in a batch
+    @param params Array of update parameters
+    """
+    ...
+
+@external
+def grow(_cardinality_next: uint16):
+    """
+    @notice Grow the oracle's observation array to a larger size
+    @param _cardinality_next The new desired size of the array
+    """
+    ...
+
+@external
+@view
+def observe(seconds_agos: DynArray[uint32, 256]) -> (DynArray[int56, 256], DynArray[uint160, 256]):
+    """
+    @notice Get observations from specified seconds ago
+    @param seconds_agos Array of seconds ago to query
+    @return Arrays of tick cumulatives and seconds per liquidity cumulatives
+    """
+    ...
+
+@external
+@view
+def get_gas_cost_of_observe(seconds_agos: DynArray[uint32, 256]) -> uint256:
+    """
+    @notice Calculate the gas cost of an observe operation
+    @param seconds_agos Array of seconds ago to query
+    @return The gas cost
+    """
+    ...
