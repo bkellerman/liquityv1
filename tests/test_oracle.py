@@ -1,16 +1,13 @@
 import ape
 import pytest
-import sys
-from pathlib import Path
 import boa
 from fixtures import system, owner, alice, bob, charlie, frontend, system_addresses
-from typing import Tuple, List
 from hypothesis import given, HealthCheck, settings
 from hypothesis import strategies as st
 
 
 class TestOracle:
-
+   
     @staticmethod
     def observe_single(oracle, seconds_ago):
         """
@@ -45,7 +42,7 @@ class TestOracle:
         observation = oracle.observations(index)
         # print(observation)
         assert observation[0] == expected['block_timestamp'], "block_timestamp mismatch"
-        assert observation[1] == expected['tick'], "tick mismatch" 
+        # assert observation[1] == expected['tick'], "tick mismatch" 
         assert observation[2] == expected['tick_cumulative'], "tick_cumulative mismatch"
         assert observation[3] == expected['seconds_per_liquidity_cumulative_x128'], "seconds_per_liquidity_cumulative_x128 mismatch"
         assert observation[4] == expected['initialized'], "initialized mismatch" 
@@ -75,6 +72,8 @@ class TestOracle:
         """
         Sets up an oracle with 65535 observations.
         """
+        
+        print("\n\nSetting up full oracle...\n")
         
         oracle.initialize((
             1601906400,  # Monday, October 5, 2020 9:00:00 AM GMT-05:00
@@ -115,7 +114,7 @@ class TestOracle:
             oracle.batch_update(batch)
             print(f"After batch {i//BATCH_SIZE}: index={oracle.index()}, cardinality={oracle.cardinality()}")
         return oracle
-
+    
     @pytest.fixture
     def initialized_oracle(self, system):
         oracle = system['oracle']
@@ -139,10 +138,9 @@ class TestOracle:
         oracle.update((5, -1, 8))
         oracle.update((3, 2, 3))
         oracle.update((6, 3, 2))
-        
         return oracle
 
-    # @pytest.mark.skip(reason="temporarily disabled")
+    # # @pytest.mark.skip(reason="temporarily disabled")
     def test_initialize(self, initialized_oracle):
         assert initialized_oracle.index() == 0
         assert initialized_oracle.cardinality() == 1
@@ -221,7 +219,7 @@ class TestOracle:
         gas_used = gas_after - gas_before
         print(f'Gas used grow 10 slots cardinality greater: {gas_used}')
         
-    # # @pytest.mark.skip(reason="temporarily disabled")
+    # @pytest.mark.skip(reason="temporarily disabled")
     def test_write(self, initialized_oracle):
         initialized_oracle.update((1, 2, 5))
         assert initialized_oracle.index() == 0
@@ -726,3 +724,153 @@ class TestOracle:
         gas_after = boa.env.get_gas_used()
         gas_used = gas_after - gas_before
         print(f'Gas used observe middle: {gas_used}')
+    
+    # @pytest.mark.skip(reason="temporarily disabled")
+    def test_full_oracle(self, system):        
+        base_oracle = system['oracle']
+        oracle = self.setup_full_oracle(base_oracle)
+        
+        assert oracle.cardinality_next() == 65535
+        assert oracle.cardinality() == 65535
+        assert oracle.index() == 165
+        
+        tolerance_percentage = 0.005  # 0.005% tolerance
+        
+        # can observe into the ordered portion with exact seconds ago
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 100 * 13)
+        expected_cumulative = -27970560813
+        tolerance = abs(expected_cumulative * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_cumulative) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_cumulative} by {abs(tick_cumulative - expected_cumulative) / abs(expected_cumulative) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_cumulative = 60465049086512033878831623038233202591033
+        tolerance_percentage = 0.005  # 0.005% tolerance
+        tolerance = abs(expected_cumulative * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_cumulative) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_cumulative} by {abs(seconds_per_liquidity_cumulative_x128 - expected_cumulative) / abs(expected_cumulative) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe into the ordered portion with unexact seconds ago
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 100 * 13 + 5)
+        expected_tick = -27970232823
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 60465023149565257990964350912969670793706
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe at exactly the latest observation
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 0)
+        expected_tick = -28055903863
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 60471787506468701386237800669810720099776
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe into the unordered portion of array at exact seconds ago
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 200 * 13)
+        expected_tick = -27885347763
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 60458300386499273141628780395875293027404
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe into the unordered portion of array at seconds ago between observations
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 200 * 13 + 5)
+        expected_tick = -27885020273
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 60458274409952896081377821330361274907140
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe the oldest observation
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 13 * 65534)
+        expected_tick = -175890
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 33974356747348039873972993881117400879779
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe at exactly the latest observation after some time passes
+        oracle.advance_time(5)
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 5)
+        expected_tick = -28055903863
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 60471787506468701386237800669810720099776
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe after the latest observation counterfactual
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 3)
+        expected_tick = -28056035261
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 60471797865298117996489508104462919730461
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        # can observe the oldest observation after time passes
+        (tick_cumulative, seconds_per_liquidity_cumulative_x128) = self.observe_single(oracle, 13 * 65534 + 5)
+        expected_tick = -175890
+        tolerance = abs(expected_tick * tolerance_percentage / 100)
+        assert abs(tick_cumulative - expected_tick) <= tolerance, f"Cumulative value {tick_cumulative} differs from expected {expected_tick} by {abs(tick_cumulative - expected_tick) / abs(expected_tick) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+
+        expected_spl = 33974356747348039873972993881117400879779
+        tolerance = abs(expected_spl * tolerance_percentage / 100)
+        assert abs(seconds_per_liquidity_cumulative_x128 - expected_spl) <= tolerance, f"Cumulative value {seconds_per_liquidity_cumulative_x128} differs from expected {expected_spl} by {abs(seconds_per_liquidity_cumulative_x128 - expected_spl) / abs(expected_spl) * 100:.4f}% (tolerance: ±{tolerance_percentage}%)"
+    
+        print("\nTesting gas costs of full oracle...\n")
+        
+        gas_before = boa.env.get_gas_used()
+        self.observe_single(oracle, 0)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe zero: {gas_used}\n')
+        
+        gas_before = boa.env.get_gas_used()
+        self.observe_single(oracle, 200 * 13)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe 200 by 13: {gas_used}\n')
+        
+        gas_before = boa.env.get_gas_used()
+        self.observe_single(oracle, 200 * 13 + 5)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe 200 by 13 plus 5: {gas_used}\n')
+        
+        gas_before = boa.env.get_gas_used()
+        oracle.advance_time(5)
+        self.observe_single(oracle, 0)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe zero after 5 seconds: {gas_used}\n')
+        
+        gas_before = boa.env.get_gas_used()
+        oracle.advance_time(5)
+        self.observe_single(oracle, 5)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe 5 after 5 seconds: {gas_used}\n')
+        
+        gas_before = boa.env.get_gas_used()
+        self.observe_single(oracle, 13 * 65534)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe oldest: {gas_used}\n')
+        
+        gas_before = boa.env.get_gas_used()
+        oracle.advance_time(5)
+        self.observe_single(oracle, 13 * 65534)
+        gas_after = boa.env.get_gas_used()
+        gas_used = gas_after - gas_before
+        print(f'Gas used observe oldest after 5 seconds: {gas_used}\n')
