@@ -108,9 +108,6 @@ def system(owner, alice, bob, system_addresses, project):
     oracle = boa.load_partial('contracts/oracle.vy').\
             deploy(override_address=system_addresses['oracle'])
 
-    oracle_full = boa.load_partial('contracts/oracle_full.vy').\
-            deploy(override_address=system_addresses['oracle_full'])
-
     lusd_token = boa.load_partial('contracts/lusd_token.vy').\
             deploy(system_addresses['trove_manager'],
             system_addresses['stability_pool'],
@@ -182,10 +179,9 @@ def system(owner, alice, bob, system_addresses, project):
             'gas_pool': gas_pool,
             'price_aggregator': price_aggregator,
             'tellor_caller': tellor_caller,
-            'oracle': oracle,
-            'oracle_full': oracle_full
+            'oracle': oracle
             }
 
 @pytest.fixture
 def frontend(accounts):
-    return accounts[32]
+    return accounts[31]
