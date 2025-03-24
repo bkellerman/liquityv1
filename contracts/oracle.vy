@@ -77,10 +77,12 @@ def _transform(
 
     # Calculate seconds_per_liquidity_cumulative_x128
     seconds_shifted: uint256 = convert(delta, uint256) << 128
-    effective_liquidity: uint256 = convert(liquidity, uint256)
-    if effective_liquidity == 0:
+    effective_liquidity: uint256 = 0
+    if liquidity > 0:
+        effective_liquidity = convert(liquidity, uint256)
+    else:
         effective_liquidity = 1
-    
+
     seconds_per_liquidity_delta: uint256 = seconds_shifted // effective_liquidity
     
     # Handle uint160 overflow for seconds_per_liquidity_cumulative_x128
@@ -89,19 +91,11 @@ def _transform(
         (convert(last.seconds_per_liquidity_cumulative_x128, uint256) + seconds_per_liquidity_delta) & mask_160,
         uint160
     )
-    
-    # Calculate tick_cumulative with wrapping
-    tick_delta: int56 = convert(last.tick, int56) * convert(delta, int56)
-    raw_sum: int256 = convert(last.tick_cumulative, int256) + convert(tick_delta, int256)
-    # Wrap around if necessary using modulo with int56 bounds
-    wrapped_sum: int256 = raw_sum % (1 << 55)
-    if raw_sum < 0 and wrapped_sum > 0:
-        wrapped_sum = wrapped_sum - (1 << 55)
-    
+    new_tick_cumulative: int56 = last.tick_cumulative + (convert(tick, int56) * convert(delta, int56))
     return Observation(
         block_timestamp=block_timestamp,
         tick=tick,
-        tick_cumulative=convert(wrapped_sum, int56),
+        tick_cumulative=new_tick_cumulative,
         seconds_per_liquidity_cumulative_x128=new_seconds_per_liquidity_cumulative,
         initialized=True
     )
@@ -125,10 +119,14 @@ def _write(
     @param cardinality_next The cardinality of the next observation
     @return The new observation, the index of the updated observation and the cardinality of the observation array
     """
-    if self.observations[index].block_timestamp == block_timestamp:
-        return self.observations[index], index, cardinality
+    lastObservation: Observation = self.observations[index]
+
+    # early return if we've already written an observation this block
+    if lastObservation.block_timestamp == block_timestamp:
+        return lastObservation, index, cardinality
 
     new_cardinality: uint16 = cardinality
+    
     if cardinality_next > cardinality and index == (cardinality - 1):
         new_cardinality = cardinality_next
     else:
@@ -141,7 +139,7 @@ def _write(
         self.observations[index],
         block_timestamp,
         tick,
-        self.liquidity  # Pass current liquidity instead of new liquidity
+        self.liquidity
     )
     
     self.observations[index_updated] = new_observation
@@ -188,48 +186,35 @@ def _binary_search(
     cardinality: uint16
 ) -> (Observation, Observation, uint16):
     """
-    @notice Performs a binary search to find the surrounding observations
-    @param time The timestamp to search for
-    @param target The target timestamp
-    @param index The index of the observation to search from
-    @param cardinality The cardinality of the observation array
-    @return The surrounding observations and the target index
+    @notice Find observations around target timestamp using binary search
+    @dev Uses for loop with max iterations of log2(65535) ≈ 16
     """
-    # Convert to uint256 to avoid underflow issues
-    left: uint256 = convert((index + 1) % cardinality, uint256)  # oldest observation
-    right: uint256 = left + convert(cardinality, uint256) - 1  # newest observation
+    left: uint256 = convert((index + 1) % cardinality, uint256)
+    right: uint256 = left + convert(cardinality, uint256) - 1
     
-    # Initialize return values
-    before_or_at: Observation = empty(Observation)
-    at_or_after: Observation = empty(Observation)
-    target_index: uint16 = 0
-    
-    # Use range-based iteration with a maximum number of iterations based on max possible cardinality
-    # log2(65535) ≈ 16, so 20 iterations is more than enough
+    # Maximum 20 iterations (more than enough since log2(65535) ≈ 16)
     for i: uint256 in range(20):
         if left > right:
             break
             
-        current: uint256 = (left + right) // 2
-        current_index: uint16 = convert(current % convert(cardinality, uint256), uint16)
-        before_or_at = self.observations[current_index]
-            
+        mid: uint256 = (left + right) // 2
+        current_index: uint16 = convert(mid % convert(cardinality, uint256), uint16)
+        before_or_at: Observation = self.observations[current_index]
+        
         if not before_or_at.initialized:
-            left = current + 1
+            left = mid + 1
             continue
             
-        next_index: uint16 = convert((current + 1) % convert(cardinality, uint256), uint16)
-        at_or_after = self.observations[next_index]
+        next_index: uint16 = convert((mid + 1) % convert(cardinality, uint256), uint16)
+        at_or_after: Observation = self.observations[next_index]
 
         if self._lte(time, before_or_at.block_timestamp, target):
             if self._lte(time, target, at_or_after.block_timestamp):
-                target_index = current_index
-                return before_or_at, at_or_after, target_index
-            left = current + 1
+                return before_or_at, at_or_after, current_index
+            left = mid + 1
         else:
-            right = current - 1
+            right = mid - 1
     
-    # If we haven't found a valid observation, revert
     assert False, "binary search failed"
     return empty(Observation), empty(Observation), 0  # Unreachable but needed for compilation
 
@@ -265,13 +250,12 @@ def _get_surrounding_observations(
             # Need to transform the latest observation to the target timestamp
             at_or_after = self._transform(
                 before_or_at,
-                target + 1,
+                target,
                 tick,
                 liquidity
             )
             is_counterfactual = True
             return before_or_at, at_or_after, is_counterfactual
-
     # Get the oldest observation
     oldest_index: uint16 = (index + 1) % cardinality
     before_or_at = self.observations[oldest_index]
@@ -325,6 +309,18 @@ def _observe_single(
     cardinality: uint16
 ) -> (int56, uint160):
     assert seconds_ago <= time, "seconds_ago is greater than time"  # Add this check
+    
+    if (seconds_ago == 0):
+        last_observation: Observation = self.observations[index]
+        if (last_observation.block_timestamp != time):
+            last_observation = self._transform(
+                last_observation,
+                time,
+                tick,
+                liquidity
+            )
+        return last_observation.tick_cumulative, last_observation.seconds_per_liquidity_cumulative_x128
+            
     target: uint32 = time - seconds_ago
 
     before_or_at: Observation = empty(Observation)
@@ -356,6 +352,7 @@ def _observe_single(
             observation_time_delta = at_or_after.block_timestamp - before_or_at.block_timestamp
 
         target_delta: uint32 = 0
+
         if target < before_or_at.block_timestamp:
             # Handle overflow case
             target_delta = convert(
@@ -368,6 +365,7 @@ def _observe_single(
         if is_counterfactual:
             # For counterfactual, use the stored tick to calculate accumulation
             tick_cumulative: int56 = before_or_at.tick_cumulative + convert(before_or_at.tick, int56) * convert(target_delta, int56)
+           
             # Calculate seconds per liquidity for counterfactual case
             seconds_shifted: uint256 = convert(target_delta, uint256) << 128
             effective_liquidity: uint256 = convert(liquidity, uint256)
@@ -453,8 +451,8 @@ def update(params: UpdateParams):
     new_observation, next_index, new_cardinality = self._write(
         old_index,
         self.time,
-        params.tick,  # Pass the new tick
-        params.liquidity,
+        self.tick,
+        self.liquidity,
         self.cardinality,
         self.cardinality_next
     )
@@ -476,7 +474,6 @@ def batch_update(params: DynArray[UpdateParams, 300]):
     _cardinality_next: uint16 = self.cardinality_next
     _time: uint32 = self.time
     params_length: uint256 = len(params)
-
     for i: uint256 in range(300):
         if i >= params_length:
             break
@@ -486,12 +483,13 @@ def batch_update(params: DynArray[UpdateParams, 300]):
             _index,
             _time,
             _tick,
-            _liquidity,
+            self.liquidity,
             _cardinality,
             _cardinality_next
         )
         _tick = params[i].tick
         _liquidity = params[i].liquidity
+        self.liquidity = params[i].liquidity
 
     self.tick = _tick
     self.liquidity = _liquidity
