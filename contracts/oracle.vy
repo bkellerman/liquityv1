@@ -300,6 +300,77 @@ def _get_surrounding_observations(
 
 @internal
 @view
+def _calculate_counterfactual(
+    before_or_at: Observation,
+    target_delta: uint32,
+    liquidity: uint128
+) -> (int56, uint160):
+    """
+    @notice Calculate tick and liquidity values for counterfactual case
+    @param before_or_at The observation before target
+    @param target_delta Time difference from before_or_at to target
+    @param liquidity Current liquidity
+    @return Calculated tick cumulative and seconds per liquidity cumulative
+    """
+    # Calculate tick cumulative
+    tick_cumulative: int56 = before_or_at.tick_cumulative + convert(before_or_at.tick, int56) * convert(target_delta, int56)
+    
+    # Calculate seconds per liquidity
+    seconds_shifted: uint256 = convert(target_delta, uint256) << 128
+    effective_liquidity: uint256 = convert(liquidity, uint256)
+    if effective_liquidity == 0:
+        effective_liquidity = 1
+    seconds_per_liquidity_delta: uint256 = seconds_shifted // effective_liquidity
+    seconds_per_liquidity_cumulative_x128: uint160 = convert(
+        convert(before_or_at.seconds_per_liquidity_cumulative_x128, uint256) + seconds_per_liquidity_delta,
+        uint160
+    )
+    
+    return tick_cumulative, seconds_per_liquidity_cumulative_x128
+
+@internal
+@view
+def _interpolate(
+    before_or_at: Observation,
+    at_or_after: Observation,
+    target_delta: uint32
+) -> (int56, uint160):
+    """
+    @notice Interpolate values between two observations
+    @param before_or_at The observation before target
+    @param at_or_after The observation after target
+    @param target_delta Time difference from before_or_at to target
+    @return Interpolated tick cumulative and seconds per liquidity cumulative
+    """
+    # Calculate time delta between observations
+    observation_time_delta: uint32 = 0
+    if at_or_after.block_timestamp < before_or_at.block_timestamp:
+        observation_time_delta = convert(
+            (convert(at_or_after.block_timestamp, uint256) + convert(max_value(uint32), uint256) + convert(1, uint256) - convert(before_or_at.block_timestamp, uint256)),
+            uint32
+        )
+    else:
+        observation_time_delta = at_or_after.block_timestamp - before_or_at.block_timestamp
+
+    # Interpolate tick cumulative
+    tick_delta: int56 = at_or_after.tick_cumulative - before_or_at.tick_cumulative
+    tick_cumulative: int56 = before_or_at.tick_cumulative + (tick_delta * convert(target_delta, int56)) // convert(observation_time_delta, int56)
+    
+    # Interpolate seconds per liquidity cumulative
+    seconds_per_liquidity_delta: uint256 = convert(
+        at_or_after.seconds_per_liquidity_cumulative_x128 - before_or_at.seconds_per_liquidity_cumulative_x128,
+        uint256
+    )
+    seconds_per_liquidity_cumulative_x128: uint160 = convert(
+        convert(before_or_at.seconds_per_liquidity_cumulative_x128, uint256) + 
+        (seconds_per_liquidity_delta * convert(target_delta, uint256)) // convert(observation_time_delta, uint256),
+        uint160
+    )
+    
+    return tick_cumulative, seconds_per_liquidity_cumulative_x128
+
+@internal
+@view
 def _observe_single(
     time: uint32,
     seconds_ago: uint32,
@@ -308,90 +379,47 @@ def _observe_single(
     liquidity: uint128,
     cardinality: uint16
 ) -> (int56, uint160):
-    assert seconds_ago <= time, "seconds_ago is greater than time"  # Add this check
+    """
+    @notice Get a single observation from seconds ago
+    @param time Current timestamp
+    @param seconds_ago Number of seconds in the past to look up
+    @param tick Current tick
+    @param index Current observation index
+    @param liquidity Current liquidity
+    @param cardinality Number of observations stored
+    @return tick_cumulative and seconds_per_liquidity_cumulative_x128
+    """
+    assert seconds_ago <= time, "seconds_ago is greater than time"
     
-    if (seconds_ago == 0):
+    # Case 1: Current timestamp (no historical lookup needed)
+    if seconds_ago == 0:
         last_observation: Observation = self.observations[index]
-        if (last_observation.block_timestamp != time):
-            last_observation = self._transform(
-                last_observation,
-                time,
-                tick,
-                liquidity
-            )
+        if last_observation.block_timestamp != time:
+            last_observation = self._transform(last_observation, time, tick, liquidity)
         return last_observation.tick_cumulative, last_observation.seconds_per_liquidity_cumulative_x128
-            
+    
+    # Case 2: Historical timestamp lookup
     target: uint32 = time - seconds_ago
-
     before_or_at: Observation = empty(Observation)
     at_or_after: Observation = empty(Observation)
     is_counterfactual: bool = False
     before_or_at, at_or_after, is_counterfactual = self._get_surrounding_observations(
-        time,
-        target,
-        tick,
-        index,
-        liquidity,
-        cardinality
+        time, target, tick, index, liquidity, cardinality
     )
 
+    # Case 2a: Exact match with existing observation
     if target == before_or_at.block_timestamp:
         return before_or_at.tick_cumulative, before_or_at.seconds_per_liquidity_cumulative_x128
-    elif target == at_or_after.block_timestamp:
+    if target == at_or_after.block_timestamp:
         return at_or_after.tick_cumulative, at_or_after.seconds_per_liquidity_cumulative_x128
+
+    # Case 2b: Interpolation needed
+    target_delta: uint32 = target - before_or_at.block_timestamp
+    
+    if is_counterfactual:
+        return self._calculate_counterfactual(before_or_at, target_delta, liquidity)
     else:
-        # Handle uint32 overflow in timestamp arithmetic
-        observation_time_delta: uint32 = 0
-        if at_or_after.block_timestamp < before_or_at.block_timestamp:
-            # Handle overflow case
-            observation_time_delta = convert(
-                (convert(at_or_after.block_timestamp, uint256) + convert(max_value(uint32), uint256) + convert(1, uint256) - convert(before_or_at.block_timestamp, uint256)),
-                uint32
-            )
-        else:
-            observation_time_delta = at_or_after.block_timestamp - before_or_at.block_timestamp
-
-        target_delta: uint32 = 0
-
-        if target < before_or_at.block_timestamp:
-            # Handle overflow case
-            target_delta = convert(
-                (convert(target, uint256) + convert(max_value(uint32), uint256) + convert(1, uint256) - convert(before_or_at.block_timestamp, uint256)),
-                uint32
-            )
-        else:
-            target_delta = target - before_or_at.block_timestamp
-
-        if is_counterfactual:
-            # For counterfactual, use the stored tick to calculate accumulation
-            tick_cumulative: int56 = before_or_at.tick_cumulative + convert(before_or_at.tick, int56) * convert(target_delta, int56)
-           
-            # Calculate seconds per liquidity for counterfactual case
-            seconds_shifted: uint256 = convert(target_delta, uint256) << 128
-            effective_liquidity: uint256 = convert(liquidity, uint256)
-            if effective_liquidity == 0:
-                effective_liquidity = 1
-            seconds_per_liquidity_delta: uint256 = seconds_shifted // effective_liquidity
-            seconds_per_liquidity_cumulative_x128: uint160 = convert(
-                convert(before_or_at.seconds_per_liquidity_cumulative_x128, uint256) + seconds_per_liquidity_delta,
-                uint160
-            )
-            return tick_cumulative, seconds_per_liquidity_cumulative_x128
-        else:
-            # For real observations, interpolate between the points
-            tick_delta: int56 = at_or_after.tick_cumulative - before_or_at.tick_cumulative
-            tick_cumulative: int56 = before_or_at.tick_cumulative + (tick_delta * convert(target_delta, int56)) // convert(observation_time_delta, int56)
-            
-            seconds_per_liquidity_delta: uint256 = convert(
-                at_or_after.seconds_per_liquidity_cumulative_x128 - before_or_at.seconds_per_liquidity_cumulative_x128,
-                uint256
-            )
-            seconds_per_liquidity_cumulative_x128: uint160 = convert(
-                convert(before_or_at.seconds_per_liquidity_cumulative_x128, uint256) + 
-                (seconds_per_liquidity_delta * convert(target_delta, uint256)) // convert(observation_time_delta, uint256),
-                uint160
-            )
-            return tick_cumulative, seconds_per_liquidity_cumulative_x128
+        return self._interpolate(before_or_at, at_or_after, target_delta)
 
 # --- External Functions ---
 @external
