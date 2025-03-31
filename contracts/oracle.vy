@@ -30,6 +30,24 @@ event ObservationUpdate:
 # --- Constants ---
 HALF_MAX_UINT32: constant(uint256) = 2147483648  # 0x80000000
 
+# @dev The minimum tick that may be passed to get_sqrt_price_at_tick computed from log base 1.0001 of 2**-128
+MIN_TICK: constant(int24) = -887272
+# @dev The maximum tick that may be passed to get_sqrt_price_at_tick computed from log base 1.0001 of 2**128
+MAX_TICK: constant(int24) = 887272
+
+# @dev The minimum tick spacing value >= 1
+MIN_TICK_SPACING: constant(int24) = 1
+# @dev The maximum tick spacing value (int16 max)
+MAX_TICK_SPACING: constant(int24) = 32767 # Vyper doesn't have type(int16).max directly as constant
+
+# @dev The minimum value that can be returned from get_sqrt_price_at_tick. Equivalent to get_sqrt_price_at_tick(MIN_TICK)
+MIN_SQRT_PRICE: constant(uint160) = 4295128739
+# @dev The maximum value that can be returned from get_sqrt_price_at_tick. Equivalent to get_sqrt_price_at_tick(MAX_TICK)
+MAX_SQRT_PRICE: constant(uint160) = 1461446703485210103287273052203988822378723970342
+# @dev A threshold used for optimized bounds check, equals `MAX_SQRT_PRICE - MIN_SQRT_PRICE - 1`
+MAX_SQRT_PRICE_MINUS_MIN_SQRT_PRICE_MINUS_ONE: constant(uint160) = MAX_SQRT_PRICE - MIN_SQRT_PRICE - 1
+
+
 # --- Storage Variables ---
 observations: public(Observation[65535])
 time: public(uint32)
@@ -40,6 +58,7 @@ cardinality: public(uint16)
 cardinality_next: public(uint16)
 
 # --- Internal Helper Functions ---
+
 @internal
 @view
 def _lte(time: uint32, a: uint32, b: uint32) -> bool:
@@ -422,6 +441,7 @@ def _observe_single(
         return self._interpolate(before_or_at, at_or_after, target_delta)
 
 # --- External Functions ---
+
 @external
 def initialize(params: InitializeParams):
     """
@@ -600,3 +620,86 @@ def get_gas_cost_of_observe(seconds_agos: DynArray[uint32, 256]) -> uint256:
         seconds_per_liquidity_cumulative_x128s.append(seconds_per_liquidity_cumulative_x128)
     
     return unsafe_sub(gas_before, msg.gas)
+
+@external
+def get_sqrt_price_at_tick(tick: int24) -> uint160:
+    """
+    @notice Calculates sqrt(1.0001^tick) * 2^96
+    @dev Throws if |tick| > MAX_TICK
+    @param tick The input tick for the above formula
+    @return sqrt_price_x96 A Fixed point Q64.96 number representing the sqrt price
+    """
+    # Calculate absolute value of tick
+    abs_tick_int: int256 = abs(convert(tick, int256))
+    abs_tick: uint256 = convert(abs_tick_int, uint256)
+
+    # Check if tick is within bounds
+    # assert self.cardinality > 0, "oracle cardinality cannot be zero"
+    assert abs_tick <= convert(MAX_TICK, uint256), "tick out of bounds"
+
+    # Calculate price iteratively based on bits of abs_tick
+    # Start with price = 1 * 2^128 (Q128.128 representation)
+    # Constants are 1/sqrt(1.0001^(2^i)) * 2^128, rounded
+    price: uint256 = 1 << 128 # Q128.128
+
+    if (abs_tick & convert(0x01, uint256)) != 0:
+        price = (price * convert(0xfffcb933bd6fad37aa2d162d1a594001, uint256)) >> 128
+    if (abs_tick & convert(0x02, uint256)) != 0:
+        price = (price * convert(0xfff97272373d413259a46990580e213a, uint256)) >> 128
+    if (abs_tick & convert(0x04, uint256)) != 0:
+        price = (price * convert(0xfff2e50f5f656932ef12357cf3c7fdcc, uint256)) >> 128
+    if (abs_tick & convert(0x08, uint256)) != 0:
+        price = (price * convert(0xffe5caca7e10e4e61c3624eaa0941cd0, uint256)) >> 128
+    if (abs_tick & convert(0x10, uint256)) != 0:
+        price = (price * convert(0xffcb9843d60f6159c9db58835c926644, uint256)) >> 128
+    if (abs_tick & convert(0x20, uint256)) != 0:
+        price = (price * convert(0xff973b41fa98c081472e6896dfb254c0, uint256)) >> 128
+    if (abs_tick & convert(0x40, uint256)) != 0:
+        price = (price * convert(0xff2ea16466c96a3843ec78b326b52861, uint256)) >> 128
+    if (abs_tick & convert(0x80, uint256)) != 0:
+        price = (price * convert(0xfe5dee046a99a2a811c461f1969c3053, uint256)) >> 128
+    if (abs_tick & convert(0x0100, uint256)) != 0:
+        price = (price * convert(0xfcbe86c7900a88aedcffc83b479aa3a4, uint256)) >> 128
+    if (abs_tick & convert(0x0200, uint256)) != 0:
+        price = (price * convert(0xf987a7253ac413176f2b074cf7815e54, uint256)) >> 128
+    if (abs_tick & convert(0x0400, uint256)) != 0:
+        price = (price * convert(0xf3392b0822b70005940c7a398e4b70f3, uint256)) >> 128
+    if (abs_tick & convert(0x0800, uint256)) != 0:
+        price = (price * convert(0xe7159475a2c29b7443b29c7fa6e889d9, uint256)) >> 128
+    if (abs_tick & convert(0x1000, uint256)) != 0:
+        price = (price * convert(0xd097f3bdfd2022b8845ad8f792aa5825, uint256)) >> 128
+    if (abs_tick & convert(0x2000, uint256)) != 0:
+        price = (price * convert(0xa9f746462d870fdf8a65dc1f90e061e5, uint256)) >> 128
+    if (abs_tick & convert(0x4000, uint256)) != 0:
+        price = (price * convert(0x70d869a156d2a1b890bb3df62baf32f7, uint256)) >> 128
+    if (abs_tick & convert(0x8000, uint256)) != 0:
+        price = (price * convert(0x31be135f97d08fd981231505542fcfa6, uint256)) >> 128
+    if (abs_tick & convert(0x010000, uint256)) != 0:
+        price = (price * convert(0x09aa508b5b7a84e1c677de54f3e99bc9, uint256)) >> 128
+    if (abs_tick & convert(0x020000, uint256)) != 0:
+        price = (price * convert(0x5d6af8dedb81196699c329225ee604, uint256)) >> 128
+    if (abs_tick & convert(0x040000, uint256)) != 0:
+        price = (price * convert(0x2216e584f5fa1ea926041bedfe98, uint256)) >> 128
+    if (abs_tick & convert(0x080000, uint256)) != 0:
+        price = (price * convert(0x048a170391f7dc42444e8fa2, uint256)) >> 128
+
+    # If tick is positive, price = 1 / price (in fixed point)
+    # price = (1 * 2^128 * 2^128) / price = 2^256 / price
+    if tick > 0:
+        # Using max_value(uint256) approximates 2^256 for the division
+        # Vyper division truncates, matching Solidity's `div` opcode behaviour here
+        price = max_value(uint256) // price
+
+    # Convert Q128.128 to Q64.96 by dividing by 2^32 and rounding up.
+    # (price + 2^32 - 1) / 2^32 === shift(price + 2^32 - 1, -32)
+    shift_amount: uint256 = 32
+    divisor: uint256 = 1 << shift_amount
+    price_plus_max_u32: uint256 = price + (divisor - 1)
+    # sqrt_price_x96_u256: uint256 = shift(price_plus_max_u32, -shift_amount)
+    # Assuming shift_amount holds the POSITIVE number of bits to shift right (e.g., 96)
+    # sqrt_price_x96_u256: uint256 = shift(price_plus_max_u32, -convert(shift_amount, int128))
+    sqrt_price_x96_u256: uint256 = price_plus_max_u32 >> shift_amount
+    
+
+    # Result fits in uint160 due to tick constraints
+    return convert(sqrt_price_x96_u256, uint160)
