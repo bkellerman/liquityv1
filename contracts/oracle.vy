@@ -695,11 +695,8 @@ def get_sqrt_price_at_tick(tick: int24) -> uint160:
     shift_amount: uint256 = 32
     divisor: uint256 = 1 << shift_amount
     price_plus_max_u32: uint256 = price + (divisor - 1)
-    # sqrt_price_x96_u256: uint256 = shift(price_plus_max_u32, -shift_amount)
     # Assuming shift_amount holds the POSITIVE number of bits to shift right (e.g., 96)
-    # sqrt_price_x96_u256: uint256 = shift(price_plus_max_u32, -convert(shift_amount, int128))
     sqrt_price_x96_u256: uint256 = price_plus_max_u32 >> shift_amount
     
-
     # Result fits in uint160 due to tick constraints
     return convert(sqrt_price_x96_u256, uint160)
